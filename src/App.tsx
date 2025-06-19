@@ -1062,14 +1062,16 @@ function App() {
                                 onValueChange={() => {}} // Placeholder, actual logic handled by checkboxes
                               >
                                 <SelectTrigger className="bg-secondary text-center">
-                                  <SelectValue>
-                                    <span className="text-sm">
-                                      {runner.subnetIds.length > 0 
-                                        ? `${runner.subnetIds.length} subnet${runner.subnetIds.length !== 1 ? 's' : ''} selected`
+                                  <SelectValue 
+                                    placeholder={
+                                      runner.subnetIds.length > 0 
+                                        ? subnets
+                                            .filter(s => runner.subnetIds.includes(s.id))
+                                            .map(s => s.name)
+                                            .join(', ')
                                         : 'Select subnets'
-                                      }
-                                    </span>
-                                  </SelectValue>
+                                    }
+                                  />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <div className="p-2">

@@ -2,7 +2,7 @@
 
 A web-based tool to help plan Gitpod Flex runner infrastructure across AWS regions.
 
-Published here :point_right: https://flex-capacity-planner.netlify.app
+Published here :point_right: https://flexcapacityplanning.netlify.app/
 
 ## Overview
 
