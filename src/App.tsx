@@ -5,14 +5,14 @@ import { Slider } from "@/components/ui/slider";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, User, Globe2, Network, Database, AlertCircle, Plus, Minus, HelpCircle, Share2, Cpu, Users, Link, Check, Copy } from "lucide-react";
+import { Download, User, Globe2, Network, Database, AlertCircle, Plus, Minus, HelpCircle, Share2, Cpu, Users, Link, Check } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { jsPDF } from 'jspdf';
 import Papa from 'papaparse';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
-interface Runner {
+export interface Runner {
   id: string;
   name: string;
   region: string;
@@ -21,7 +21,7 @@ interface Runner {
   capacity: number;
 }
 
-interface Subnet {
+export interface Subnet {
   id: string;
   name: string;
   region: string;
@@ -343,10 +343,6 @@ function App() {
     })));
   };
 
-  const calculateCapacity = (azs: number, subnet: number) => {
-    const ipsPerSubnet = Math.pow(2, 32 - subnet) - 5;
-    return ipsPerSubnet * azs;
-  };
 
   const handleRegionToggle = (region: string) => {
     setSelectedRegions(prev => 
