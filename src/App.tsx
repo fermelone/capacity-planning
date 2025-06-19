@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, User, Globe2, Network, Database, AlertCircle, Plus, Minus, HelpCircle, Share2, Cpu, Users, Link, Check, Copy } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { jsPDF } from 'jspdf';
 import Papa from 'papaparse';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -42,30 +42,30 @@ const SUBNET_OPTIONS = [
 
 const AWS_REGIONS = {
   "North America": [
-    { value: "us-east-1", label: "US East (N. Virginia)" },
-    { value: "us-east-2", label: "US East (Ohio)" },
-    { value: "us-west-1", label: "US West (N. California)" },
-    { value: "us-west-2", label: "US West (Oregon)" },
-    { value: "ca-central-1", label: "Canada Central" },
+    { value: "us-east-1", label: "US East (us-east-1)" },
+    { value: "us-east-2", label: "US East (us-east-2)" },
+    { value: "us-west-1", label: "US West (us-west-1)" },
+    { value: "us-west-2", label: "US West (us-west-2)" },
+    { value: "ca-central-1", label: "Canada Central (ca-central-1)" },
   ],
   "Europe": [
-    { value: "eu-west-1", label: "EU West (Ireland)" },
-    { value: "eu-central-1", label: "EU Central (Frankfurt)" },
+    { value: "eu-west-1", label: "EU West (eu-west-1)" },
+    { value: "eu-central-1", label: "EU Central (eu-central-1)" },
   ],
   "Asia Pacific": [
-    { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
-    { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
-    { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+    { value: "ap-southeast-1", label: "Asia Pacific (ap-southeast-1)" },
+    { value: "ap-southeast-2", label: "Asia Pacific (ap-southeast-2)" },
+    { value: "ap-northeast-1", label: "Asia Pacific (ap-northeast-1)" },
   ],
   "South America": [
-    { value: "sa-east-1", label: "South America (São Paulo)" },
+    { value: "sa-east-1", label: "South America (sa-east-1)" },
   ],
 };
 
 function App() {
   const { toast } = useToast();
-  const [totalUsers, setTotalUsers] = useState(10);
-  const [environmentsPerUser, setEnvironmentsPerUser] = useState(1);
+  const [totalUsers, setTotalUsers] = useState<number | string>(10);
+  const [environmentsPerUser, setEnvironmentsPerUser] = useState<number | string>(1);
   const [azCount, setAzCount] = useState(2);
   const [subnetSize, setSubnetSize] = useState(16);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
@@ -76,65 +76,129 @@ function App() {
   const [isStateLoaded, setIsStateLoaded] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const state = params.get('state');
-    if (state) {
-      try {
-        const decodedState = JSON.parse(atob(state));
-        setTotalUsers(decodedState.totalUsers ?? 10);
-        setEnvironmentsPerUser(decodedState.environmentsPerUser ?? 1);
-        setAzCount(decodedState.azCount ?? 2);
-        setSubnetSize(decodedState.subnetSize ?? 16);
-        setSelectedRegions(decodedState.selectedRegions ?? []);
-        setRunners(decodedState.runners ?? []);
-        setSubnets(decodedState.subnets ?? []);
-        setNextRunnerId(decodedState.nextRunnerId ?? 1);
-        setIsStateLoaded(true);
-      } catch (error) {
-        console.error('Failed to parse state from URL:', error);
-        setIsStateLoaded(true);
+    const loadStateFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const state = params.get('state');
+      
+      if (state) {
+        try {
+          const decodedState = JSON.parse(atob(state));
+          
+          // Validate and sanitize inputs
+          const validatedState = {
+            totalUsers: Math.max(1, Math.min(99999, decodedState.totalUsers ?? 10)),
+            environmentsPerUser: Math.max(1, Math.min(10, decodedState.environmentsPerUser ?? 1)),
+            azCount: Math.max(1, Math.min(3, decodedState.azCount ?? 2)),
+            subnetSize: Math.max(16, Math.min(22, decodedState.subnetSize ?? 16)),
+            selectedRegions: Array.isArray(decodedState.selectedRegions) ? decodedState.selectedRegions : [],
+            runners: Array.isArray(decodedState.runners) ? decodedState.runners : [],
+            subnets: Array.isArray(decodedState.subnets) ? decodedState.subnets : [],
+            nextRunnerId: Math.max(1, decodedState.nextRunnerId ?? 1),
+          };
+          
+          // Set state in the correct order to avoid race conditions
+          setTotalUsers(validatedState.totalUsers);
+          setEnvironmentsPerUser(validatedState.environmentsPerUser);
+          setAzCount(validatedState.azCount);
+          setSubnetSize(validatedState.subnetSize);
+          setSelectedRegions(validatedState.selectedRegions);
+          setSubnets(validatedState.subnets);
+          setRunners(validatedState.runners);
+          setNextRunnerId(validatedState.nextRunnerId);
+          
+        } catch (error) {
+          console.error('Failed to parse state from URL:', error);
+          toast({
+            title: "Invalid configuration URL",
+            description: "The shared configuration could not be loaded. Starting with default values.",
+            variant: "destructive",
+          });
+        }
       }
-    } else {
+      
       setIsStateLoaded(true);
-    }
-  }, []);
+    };
+    
+    loadStateFromUrl();
+  }, [toast]);
 
   useEffect(() => {
     if (!isStateLoaded) return;
 
-    const state = {
-      totalUsers,
-      environmentsPerUser,
-      azCount,
-      subnetSize,
-      selectedRegions,
-      runners,
-      subnets,
-      nextRunnerId,
-    };
-    const encodedState = btoa(JSON.stringify(state));
-    const newUrl = `${window.location.pathname}?state=${encodedState}`;
-    window.history.replaceState({}, '', newUrl);
+    try {
+      const state = {
+        totalUsers,
+        environmentsPerUser,
+        azCount,
+        subnetSize,
+        selectedRegions,
+        runners,
+        subnets,
+        nextRunnerId,
+      };
+      
+      const encodedState = btoa(JSON.stringify(state));
+      const newUrl = `${window.location.pathname}?state=${encodedState}`;
+      
+      // Check URL length and warn if too long
+      if (newUrl.length > 2048) {
+        console.warn('Generated URL is very long and may not work in all browsers:', newUrl.length, 'characters');
+      }
+      
+      window.history.replaceState({}, '', newUrl);
+    } catch (error) {
+      console.error('Failed to update URL with state:', error);
+      // Continue without updating URL rather than crashing
+    }
   }, [isStateLoaded, totalUsers, environmentsPerUser, azCount, subnetSize, selectedRegions, runners, subnets, nextRunnerId]);
 
+  // Auto-create runner when we have selected regions and subnets (and no runners exist)
   useEffect(() => {
     if (!isStateLoaded) return;
-
-    if (selectedRegions.length > 0 && runners.length === 0) {
+    const hasLoadedFromUrl = new URLSearchParams(window.location.search).has('state');
+    
+    // Create a default runner when we have regions and subnets but no runners
+    if (selectedRegions.length > 0 && subnets.length > 0 && runners.length === 0 && !hasLoadedFromUrl) {
+      const numUsers = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 10;
       const newRunner: Runner = {
         id: crypto.randomUUID(),
         name: `Runner 1`,
         region: selectedRegions[0],
-        users: totalUsers,
+        users: numUsers,
         subnetIds: [],
         capacity: 0
       };
       setNextRunnerId(2);
       setRunners([newRunner]);
-    } else if (selectedRegions.length === 0) {
+    }
+  }, [isStateLoaded, selectedRegions.length, subnets.length, runners.length, totalUsers]);
+  
+  // Clean up runners when no regions are selected
+  useEffect(() => {
+    if (!isStateLoaded) return;
+    const hasLoadedFromUrl = new URLSearchParams(window.location.search).has('state');
+    
+    if (selectedRegions.length === 0 && runners.length > 0 && !hasLoadedFromUrl) {
       setRunners([]);
     }
-  }, [isStateLoaded, selectedRegions, totalUsers]);
+  }, [isStateLoaded, selectedRegions.length, runners.length]);
+  
+  // Update runner regions when selected regions change
+  useEffect(() => {
+    if (!isStateLoaded || runners.length === 0 || selectedRegions.length === 0) return;
+    
+    setRunners(prev => prev.map(runner => {
+      if (!selectedRegions.includes(runner.region)) {
+        return {
+          ...runner,
+          region: selectedRegions[0],
+          subnetIds: [],
+          capacity: 0
+        };
+      }
+      return runner;
+    }));
+  }, [isStateLoaded, selectedRegions, runners.length]);
 
   const shortenUrl = async (url: string): Promise<string> => {
     try {
@@ -150,16 +214,37 @@ function App() {
   const handleShare = async () => {
     setIsSharing(true);
     try {
-      const shortUrl = await shortenUrl(window.location.href);
-      await navigator.clipboard.writeText(shortUrl);
-      toast({
-        title: "Link copied!",
-        description: "The shortened URL has been copied to your clipboard.",
-      });
+      let urlToShare = window.location.href;
+      
+      // Try to shorten URL, but don't fail if it doesn't work
+      try {
+        const shortUrl = await shortenUrl(urlToShare);
+        if (shortUrl && shortUrl !== urlToShare && shortUrl.startsWith('http')) {
+          urlToShare = shortUrl;
+          toast({
+            title: "Link copied!",
+            description: "The shortened URL has been copied to your clipboard.",
+          });
+        } else {
+          toast({
+            title: "Link copied!",
+            description: "The configuration URL has been copied to your clipboard.",
+          });
+        }
+      } catch (shortenError) {
+        // Silently continue with original URL if shortening fails
+        toast({
+          title: "Link copied!",
+          description: "The configuration URL has been copied to your clipboard.",
+        });
+      }
+      
+      await navigator.clipboard.writeText(urlToShare);
     } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
       toast({
         title: "Failed to copy link",
-        description: "Please try again or copy the URL manually.",
+        description: "Please manually copy the URL from your browser's address bar.",
         variant: "destructive",
       });
     } finally {
@@ -206,23 +291,37 @@ function App() {
     ));
   };
 
-  const getTotalAssignedUsers = () => runners.reduce((sum, runner) => sum + runner.users, 0);
+  const getTotalAssignedUsers = useMemo(() => 
+    runners.reduce((sum, runner) => sum + runner.users, 0), 
+    [runners]
+  );
+
+  const distributeUsersAmongRunners = (runnerCount: number, totalUsersToDistribute: number) => {
+    const baseUsers = Math.floor(totalUsersToDistribute / runnerCount);
+    const remainder = totalUsersToDistribute % runnerCount;
+    
+    return Array.from({ length: runnerCount }, (_, index) => 
+      baseUsers + (index < remainder ? 1 : 0)
+    );
+  };
 
   const addRunner = () => {
     if (selectedRegions.length === 0) return;
     
-    const usersPerRunner = Math.floor(totalUsers / (runners.length + 1));
+    const newRunnerCount = runners.length + 1;
+    const numUsers = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 0;
+    const userDistribution = distributeUsersAmongRunners(newRunnerCount, numUsers);
     
-    const updatedRunners = runners.map(runner => ({
+    const updatedRunners = runners.map((runner, index) => ({
       ...runner,
-      users: usersPerRunner
+      users: userDistribution[index]
     }));
     
     const newRunner: Runner = {
       id: crypto.randomUUID(),
       name: `Runner ${nextRunnerId}`,
       region: selectedRegions[0],
-      users: usersPerRunner,
+      users: userDistribution[newRunnerCount - 1],
       subnetIds: [],
       capacity: 0
     };
@@ -235,11 +334,12 @@ function App() {
     if (runners.length <= 1) return;
     
     const remainingRunners = runners.filter(r => r.id !== id);
-    const usersPerRunner = Math.floor(totalUsers / remainingRunners.length);
+    const numUsers = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 0;
+    const userDistribution = distributeUsersAmongRunners(remainingRunners.length, numUsers);
     
-    setRunners(remainingRunners.map(runner => ({
+    setRunners(remainingRunners.map((runner, index) => ({
       ...runner,
-      users: usersPerRunner
+      users: userDistribution[index]
     })));
   };
 
@@ -256,10 +356,10 @@ function App() {
     );
   };
 
-  const updateRunnerUsers = (runnerId: string, newUsers: number) => {
+  const updateRunnerUsers = (runnerId: string, newUsers: number | string) => {
     setRunners(prev => prev.map(runner =>
       runner.id === runnerId
-        ? { ...runner, users: Math.max(0, newUsers) }
+        ? { ...runner, users: Math.max(0, typeof newUsers === 'number' ? newUsers : Number(newUsers) || 0) }
         : runner
     ));
   };
@@ -287,28 +387,42 @@ function App() {
     ));
   };
 
-  const getRunnerPlannedUtilization = (runner: Runner) => runner.users * environmentsPerUser;
+  const getRunnerPlannedUtilization = (runner: Runner) => {
+    const envs = typeof environmentsPerUser === 'number' ? environmentsPerUser : Number(environmentsPerUser) || 1;
+    return runner.users * envs;
+  };
 
-  const getTotalPlannedUtilization = () => totalUsers * environmentsPerUser;
+  const getTotalPlannedUtilization = useMemo(() => {
+    const users = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 0;
+    const envs = typeof environmentsPerUser === 'number' ? environmentsPerUser : Number(environmentsPerUser) || 1;
+    return users * envs;
+  }, [totalUsers, environmentsPerUser]);
   
-  const getTotalCapacity = () => {
+  const getTotalCapacity = useMemo(() => {
     const uniqueSubnetIds = new Set(runners.flatMap(runner => runner.subnetIds));
     
     return Array.from(uniqueSubnetIds).reduce((sum, subnetId) => {
       const subnet = subnets.find(s => s.id === subnetId);
       return sum + (subnet?.availableIps || 0);
     }, 0);
-  };
+  }, [runners, subnets]);
 
-  const getOverCapacityRunners = () => {
+  const getOverCapacityRunners = useMemo(() => {
     return runners.filter(runner => {
       const plannedUtilization = getRunnerPlannedUtilization(runner);
       return plannedUtilization > runner.capacity && runner.capacity > 0;
     });
-  };
+  }, [runners, environmentsPerUser]);
+
+  const getUtilizationPercentage = useCallback(() => {
+    return getTotalCapacity > 0
+      ? Math.round((getTotalPlannedUtilization / getTotalCapacity) * 100)
+      : 0;
+  }, [getTotalCapacity, getTotalPlannedUtilization]);
 
   const exportToPDF = () => {
     const doc = new jsPDF();
+    const utilizationPercent = getUtilizationPercentage();
     
     doc.setFontSize(16);
     doc.text("Capacity Planning Summary", 20, 20);
@@ -367,11 +481,16 @@ function App() {
     doc.text("Capacity Summary", 20, y);
     y += 10;
     doc.setFontSize(10);
-    doc.text(`Planned Users: ${getTotalPlannedUtilization().toLocaleString()}`, 20, y);
+    doc.text(`Planned Users: ${getTotalPlannedUtilization.toLocaleString()}`, 20, y);
     y += 10;
-    doc.text(`Total Capacity: ${getTotalCapacity().toLocaleString()}`, 20, y);
+    doc.text(`Total Capacity: ${getTotalCapacity.toLocaleString()}`, 20, y);
     y += 10;
-    doc.text(`Utilization: ${utilizationPercentage}%`, 20, y);
+    doc.text(`Utilization: ${utilizationPercent}%`, 20, y);
+    
+    // Clean up blob URL after a delay to ensure download completes
+    setTimeout(() => {
+      // Cleanup handled by jsPDF internally
+    }, 1000);
     
     doc.save("capacity-planning.pdf");
   };
@@ -405,12 +524,19 @@ function App() {
     const csv = Papa.unparse([...subnetData, ...runnerData]);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = 'capacity-planning.csv';
     link.click();
+    
+    // Clean up blob URL to prevent memory leaks
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   const exportToText = () => {
+    const utilizationPercent = getUtilizationPercentage();
     let text = `Capacity Planning Summary\n\n`;
     text += `Total Users: ${totalUsers}\n`;
     text += `Environments per User: ${environmentsPerUser}\n`;
@@ -437,22 +563,29 @@ function App() {
     });
 
     text += `\nCapacity Summary:\n`;
-    text += `Planned Users: ${getTotalPlannedUtilization().toLocaleString()}\n`;
-    text += `Total Capacity: ${getTotalCapacity().toLocaleString()}\n`;
-    text += `Utilization: ${utilizationPercentage}%\n`;
+    text += `Planned Users: ${getTotalPlannedUtilization.toLocaleString()}\n`;
+    text += `Total Capacity: ${getTotalCapacity.toLocaleString()}\n`;
+    text += `Utilization: ${utilizationPercent}%\n`;
     
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = 'capacity-planning.txt';
     link.click();
+    
+    // Clean up blob URL to prevent memory leaks
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
-  const totalAssignedUsers = getTotalAssignedUsers();
-  const isOverAllocated = totalAssignedUsers > totalUsers;
-  const isUnderAllocated = totalAssignedUsers < totalUsers;
+  const totalAssignedUsers = getTotalAssignedUsers;
+  const numericTotalUsers = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 0;
+  const isOverAllocated = useMemo(() => totalAssignedUsers > numericTotalUsers, [totalAssignedUsers, numericTotalUsers]);
+  const isUnderAllocated = useMemo(() => totalAssignedUsers < numericTotalUsers, [totalAssignedUsers, numericTotalUsers]);
 
-  const getSharedSubnets = () => {
+  const getSharedSubnets = useMemo(() => {
     const subnetUsage = runners.reduce((acc, runner) => {
       runner.subnetIds.forEach(id => {
         acc[id] = (acc[id] || 0) + 1;
@@ -464,11 +597,14 @@ function App() {
       .filter(([_, count]) => count > 1)
       .map(([subnetId]) => subnets.find(s => s.id === subnetId)?.name)
       .filter(Boolean);
-  };
+  }, [runners, subnets]);
 
   useEffect(() => {
     setRunners(prev => prev.map(runner => {
-      const validSubnetIds = runner.subnetIds.filter(id => subnets.some(s => s.id === id));
+      // Filter out subnets that no longer exist OR are not in the runner's region
+      const validSubnetIds = runner.subnetIds.filter(id => 
+        subnets.some(s => s.id === id && s.region === runner.region)
+      );
       
       return {
         ...runner,
@@ -481,13 +617,10 @@ function App() {
     }));
   }, [subnets]);
 
-  const utilizationPercentage = getTotalCapacity() > 0
-    ? Math.round((getTotalPlannedUtilization() / getTotalCapacity()) * 100)
-    : 0;
+  const utilizationPercentage = useMemo(() => getUtilizationPercentage(), [getUtilizationPercentage]);
+  const utilizationColor = useMemo(() => utilizationPercentage > 100 ? '#DC2626' : '#84CC16', [utilizationPercentage]);
 
-  const utilizationColor = utilizationPercentage > 100 ? '#DC2626' : '#84CC16';
-
-  const overCapacityRunners = getOverCapacityRunners();
+  const overCapacityRunners = getOverCapacityRunners;
 
   return (
     <div className="min-h-screen bg-background text-foreground py-12">
@@ -518,8 +651,21 @@ function App() {
                         value={totalUsers}
                         className="bg-secondary text-center text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         onChange={(e) => {
-                          const value = e.target.value === '' ? '' : Math.min(99999, Math.max(1, Number(e.target.value)));
-                          setTotalUsers(value === '' ? 1 : value);
+                          const inputValue = e.target.value;
+                          if (inputValue === '') {
+                            setTotalUsers('');
+                          } else {
+                            const numValue = Number(inputValue);
+                            if (!isNaN(numValue)) {
+                              setTotalUsers(Math.min(99999, Math.max(1, numValue)));
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          if (value === '' || Number(value) < 1) {
+                            setTotalUsers(1);
+                          }
                         }}
                       />
                     </div>
@@ -540,8 +686,21 @@ function App() {
                         value={environmentsPerUser}
                         className="bg-secondary text-center text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         onChange={(e) => {
-                          const value = e.target.value === '' ? '' : Math.min(10, Math.max(1, Number(e.target.value)));
-                          setEnvironmentsPerUser(value === '' ? 1 : value);
+                          const inputValue = e.target.value;
+                          if (inputValue === '') {
+                            setEnvironmentsPerUser('');
+                          } else {
+                            const numValue = Number(inputValue);
+                            if (!isNaN(numValue)) {
+                              setEnvironmentsPerUser(Math.min(10, Math.max(1, numValue)));
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          if (value === '' || Number(value) < 1) {
+                            setEnvironmentsPerUser(1);
+                          }
                         }}
                       />
                     </div>
@@ -753,7 +912,22 @@ function App() {
             </div>
           </Card>}
 
-          {subnets.length > 0 && runners.length > 0 && (
+          {subnets.length > 0 && (() => {
+            // Ensure we have at least one runner when showing the table
+            if (selectedRegions.length > 0 && runners.length === 0) {
+              const numUsers = typeof totalUsers === 'number' ? totalUsers : Number(totalUsers) || 10;
+              const defaultRunner: Runner = {
+                id: crypto.randomUUID(),
+                name: `Runner 1`,
+                region: selectedRegions[0],
+                users: numUsers,
+                subnetIds: [],
+                capacity: 0
+              };
+              setRunners([defaultRunner]);
+              setNextRunnerId(2);
+            }
+            return (
             <>
               <Card className="p-6 bg-card">
                 <div className="flex flex-col space-y-4 mb-4">
@@ -790,21 +964,21 @@ function App() {
                   {isOverAllocated && (
                     <div className="flex items-center space-x-2 text-destructive">
                       <AlertCircle className="h-5 w-5" />
-                      <span>Warning: Total allocated users ({totalAssignedUsers}) exceeds expected users ({totalUsers})</span>
+                      <span>Warning: Total allocated users ({totalAssignedUsers}) exceeds expected users ({numericTotalUsers})</span>
                     </div>
                   )}
                   {isUnderAllocated && (
                     <div className="flex items-center space-x-2 text-yellow-500">
                       <AlertCircle className="h-5 w-5" />
-                      <span>Warning: Total allocated users ({totalAssignedUsers}) is below expected users ({totalUsers})</span>
+                      <span>Warning: Total allocated users ({totalAssignedUsers}) is below expected users ({numericTotalUsers})</span>
                     </div>
                   )}
-                  {getSharedSubnets().length > 0 && (
+                  {getSharedSubnets.length > 0 && (
                     <div className="flex items-center space-x-2 text-orange-500">
                       <Share2 className="h-5 w-5" />
                       <span>
                         Warning: The following subnets are shared between multiple runners:{' '}
-                        {getSharedSubnets().join(', ')}
+                        {getSharedSubnets.join(', ')}
                       </span>
                     </div>
                   )}
@@ -840,15 +1014,48 @@ function App() {
                               className="w-full bg-secondary text-center"
                             />
                           </TableCell>
-                          <TableCell className="text-center">{runner.region}</TableCell>
+                          <TableCell className="text-center">
+                            <Select
+                              value={runner.region}
+                              onValueChange={(value) => {
+                                setRunners(prev => prev.map(r => 
+                                  r.id === runner.id 
+                                    ? { ...r, region: value, subnetIds: [] } // Clear subnets when region changes
+                                    : r
+                                ));
+                              }}
+                            >
+                              <SelectTrigger className="bg-secondary text-center">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {selectedRegions.map((region) => (
+                                  <SelectItem key={region} value={region}>
+                                    {region}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell className="text-center">
                             <Input
                               type="number"
                               min="0"
                               value={runner.users}
                               onChange={(e) => {
-                                const newValue = Math.max(0, parseInt(e.target.value) || 0);
-                                updateRunnerUsers(runner.id, newValue);
+                                const inputValue = e.target.value;
+                                if (inputValue === '') {
+                                  updateRunnerUsers(runner.id, '');
+                                } else {
+                                  const newValue = Math.max(0, parseInt(inputValue) || 0);
+                                  updateRunnerUsers(runner.id, newValue);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || Number(value) < 0) {
+                                  updateRunnerUsers(runner.id, 0);
+                                }
                               }}
                               className="w-full bg-secondary text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
@@ -856,37 +1063,49 @@ function App() {
                           <TableCell>
                             <div className="relative">
                               <Select
-                                value={[]}
-                                onValueChange={(value) => {
-                                  const newValue = Array.isArray(value) ? value : [value];
-                                  updateRunnerSubnets(runner.id, newValue);
-                                }}
+                                onValueChange={() => {}} // Placeholder, actual logic handled by checkboxes
                               >
                                 <SelectTrigger className="bg-secondary text-center">
-                                  <SelectValue placeholder="Select subnets">
-                                    {runner.subnetIds.length} subnet{runner.subnetIds.length !== 1 ? 's' : ''} selected
+                                  <SelectValue>
+                                    <span className="text-sm">
+                                      {runner.subnetIds.length > 0 
+                                        ? `${runner.subnetIds.length} subnet${runner.subnetIds.length !== 1 ? 's' : ''} selected`
+                                        : 'Select subnets'
+                                      }
+                                    </span>
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {subnets.filter(s => s.region === runner.region).map((subnet) => (
-                                    <div key={subnet.id} className="flex items-center space-x-2 px-2 py-1">
-                                      <input
-                                        type="checkbox"
-                                        id={`subnet-${subnet.id}`}
-                                        checked={runner.subnetIds.includes(subnet.id)}
-                                        onChange={(e) => {
-                                          const newSubnetIds = e.target.checked
-                                            ? [...runner.subnetIds, subnet.id]
-                                            : runner.subnetIds.filter(id => id !== subnet.id);
-                                          updateRunnerSubnets(runner.id, newSubnetIds);
-                                        }}
-                                        className="h-4 w-4 accent-primary"
-                                      />
-                                      <label htmlFor={`subnet-${subnet.id}`} className="flex-1 cursor-pointer">
-                                        {subnet.name}
-                                      </label>
-                                    </div>
-                                  ))}
+                                  <div className="p-2">
+                                    {subnets.filter(s => s.region === runner.region).length === 0 ? (
+                                      <div className="text-sm text-muted-foreground px-2 py-1">
+                                        No subnets available for {runner.region}
+                                      </div>
+                                    ) : (
+                                      subnets.filter(s => s.region === runner.region).map((subnet) => (
+                                        <div key={subnet.id} className="flex items-center space-x-2 px-2 py-2 hover:bg-secondary/50 rounded">
+                                          <input
+                                            type="checkbox"
+                                            id={`runner-${runner.id}-subnet-${subnet.id}`}
+                                            checked={runner.subnetIds.includes(subnet.id)}
+                                            onChange={(e) => {
+                                              const newSubnetIds = e.target.checked
+                                                ? [...runner.subnetIds, subnet.id]
+                                                : runner.subnetIds.filter(id => id !== subnet.id);
+                                              updateRunnerSubnets(runner.id, newSubnetIds);
+                                            }}
+                                            className="h-4 w-4 accent-primary"
+                                          />
+                                          <label 
+                                            htmlFor={`runner-${runner.id}-subnet-${subnet.id}`} 
+                                            className="flex-1 cursor-pointer text-sm"
+                                          >
+                                            {subnet.name} (/{subnet.cidrSize}, {subnet.availableIps.toLocaleString()} IPs)
+                                          </label>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -910,7 +1129,7 @@ function App() {
                           Total # Envs:
                         </TableCell>
                         <TableCell className="text-center">
-                          {getTotalPlannedUtilization().toLocaleString()}
+                          {getTotalPlannedUtilization.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right pr-8">
                           Capacity Summary:
@@ -918,7 +1137,7 @@ function App() {
                         <TableCell className="text-center">
                           <div className="flex flex-col space-y-1">
                             <span>
-                              {getTotalPlannedUtilization().toLocaleString()} / {getTotalCapacity().toLocaleString()}
+                              {getTotalPlannedUtilization.toLocaleString()} / {getTotalCapacity.toLocaleString()}
                             </span>
                             <span 
                               className="text-sm"
@@ -956,7 +1175,8 @@ function App() {
                 </Button>
               </div>
             </>
-          )}
+            );
+          })()}
         </div>
         <div className="mt-16 text-center text-muted-foreground">
           <a href="https://www.gitpod.io/docs/flex/runners/aws/capacity-planning" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
