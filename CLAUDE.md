@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Essential Commands
-- `yarn dev` or `npm run dev` - Start development server (available at http://localhost:5173)
+- `yarn dev` or `npm run dev` - Start development server (available at http://localhost:3000)
 - `yarn build` or `npm run build` - Build for production (runs TypeScript compilation then Vite build)
 - `yarn lint` or `npm run lint` - Run ESLint
 - `yarn preview` or `npm run preview` - Preview production build locally
@@ -64,7 +64,6 @@ This is a **Gitpod Flex Capacity Planning** tool - a React TypeScript applicatio
 - React refresh plugin for development
 
 **Important Notes:**
-- No test suite currently configured
 - No backend API - purely client-side application
-- Deployed to Netlify (https://flex-capacity-planner.netlify.app)
+- Deployed to Netlify (https://flexcapacityplanning.netlify.app)
 - IP calculations account for AWS reserved IPs (first 4 + last 1 in each subnet)
