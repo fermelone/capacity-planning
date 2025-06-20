@@ -96,7 +96,7 @@ describe('App Component', () => {
       const user = userEvent.setup();
       render(<App />);
       
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       expect(usEastCheckbox).toBeChecked();
@@ -106,7 +106,7 @@ describe('App Component', () => {
       const user = userEvent.setup();
       render(<App />);
       
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -121,7 +121,7 @@ describe('App Component', () => {
       render(<App />);
       
       // First select a region
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -144,7 +144,7 @@ describe('App Component', () => {
       render(<App />);
       
       // Select region and add subnet
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -162,7 +162,7 @@ describe('App Component', () => {
       render(<App />);
       
       // Setup: select region and add subnet
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -188,7 +188,7 @@ describe('App Component', () => {
       render(<App />);
       
       // Setup complete configuration
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -215,7 +215,7 @@ describe('App Component', () => {
       await user.type(userInput, '10');
       
       // Setup infrastructure
-      const usEastCheckbox = screen.getByLabelText('US East (N. Virginia)');
+      const usEastCheckbox = screen.getByLabelText('US East (us-east-1)');
       await user.click(usEastCheckbox);
       
       await waitFor(() => {
@@ -225,7 +225,8 @@ describe('App Component', () => {
       
       // Manually set runner users to exceed total
       await waitFor(async () => {
-        const runnerUserInput = screen.getByDisplayValue('10');
+        const runnerUserInputs = screen.getAllByDisplayValue('10');
+        const runnerUserInput = runnerUserInputs[runnerUserInputs.length - 1]; // Get the last one (runner input)
         await user.clear(runnerUserInput);
         await user.type(runnerUserInput, '15');
       });
