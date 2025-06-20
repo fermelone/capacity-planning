@@ -4,6 +4,9 @@ A web-based tool to help plan Gitpod Flex runner infrastructure across AWS regio
 
 Published here :point_right: https://flexcapacityplanning.netlify.app/
 
+![image](https://github.com/user-attachments/assets/d6030fe9-f4c4-4f78-917e-2cd8c8d2387a)
+
+
 ## Overview
 
 This application helps you plan your [Gitpod Flex runner](https://www.gitpod.io/docs/flex/introduction/runners) infrastructure by:
